@@ -1,0 +1,16 @@
+Package: mountainsdata
+Title: Data on Mountains by Elevation
+Version: 0.0.1
+Authors@R: 
+    person("Mathis", "Elling", , "github@mathis-elling.de", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-1402-1860"))
+Description: Provides data scraped from Wikipedia on mountains by elevation.
+License: CC BY-SA 4.0
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends: 
+    R (>= 2.10)
+LazyData: true
+URL: https://github.com/mathiselling/mountainsdata
+BugReports: https://github.com/mathiselling/mountainsdata/issues
