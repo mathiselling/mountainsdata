@@ -18,18 +18,22 @@ remove_comma <- function(x) {
 }
 
 # List of the countries
-# remove everything between parentheses (including the parentheses themselves) and the space before the first parenthesis
-# remove everything following a comma (including the comma) up to the first occurrence of the | character
-list_countries_01 <- paste(countries::list_countries(), collapse = "|") %>%
-  str_remove_all(" ?\\(.*?\\)|,[^|]*")
+list_countries_01 <- paste(
+  countries::country_reference_list[1:249, "simple"],
+  collapse = "|"
+)
 
-list_countries_02 <- paste(list_countries_01, "United States", "US", sep = "|")
+list_countries_02 <- paste(
+  list_countries_01,
+  "United States", "US", "Russia", "Tanzania",
+  sep = "|"
+)
 
-list_ranges <- "Himalayas|Karakoram"
+list_ranges <- "Himalayas|Karakoram|Hindu Kush|Tian Shan|Pamir|Andes|Alps|Alaska Range|Caucasus"
 
 # For loop
 
-df_mountains <- tibble()
+df_mountains_01 <- tibble()
 
 for (i in 1:7) {
   df_loop <- wikipedia_tables[[i]] %>%
@@ -52,27 +56,69 @@ for (i in 1:7) {
       },
       range = if_else(is.na(range), map_chr(
         str_extract_all(location_and_notes, list_ranges),
-        ~ paste(unique(.x), collapse = ", ")
+        ~ paste(unique(.x), collapse = " and ")
       ), range)
     ) %>%
     select(mountain, meters, feet, range, country)
 
-  df_mountains <- bind_rows(df_mountains, df_loop)
+  df_mountains_01 <- bind_rows(df_mountains_01, df_loop)
 }
 
 # Geocoding
-df_mountains_geo <- df_mountains %>%
+df_mountains_geo <- df_mountains_01 %>%
   mutate(
     id = row_number(),
     mountain_and_country = paste(mountain, country, sep = " in ")
   ) %>%
-  #geocode(mountain_and_country, method = "arcgis")
+  geocode(mountain_and_country, method = "arcgis")
+
+# Some country names are missing in the respective columns of the Wikipedia article
+df_mountains_geo %>%
+  filter(is.na(country))
+
+df_mountains_geo_rev <- df_mountains_geo %>%
+  mutate(
+    country = case_when(
+      mountain == "Mount Temple" ~ "Canada",
+      mountain == "Mount Crean" ~ "Antarctica",
+      .default = country
+    )
+  ) %>%
+  rowwise() %>%
+  mutate(
+    country = if (is.na(country)) {
+      reverse_geo(lat, long, method = "osm", address = "address", verbose = T) %>% pull(address)
+    } else {
+      country
+    }
+  ) %>%
+  ungroup()
+
+#check
+df_mountains_geo_rev %>%
+  filter(is.na(country))
+
+# Look again for matching country names
+df_mountains_geo_rev_country <- df_mountains_geo_rev %>%
+  rowwise() %>%
+  mutate(
+    country = if (str_detect(country, ",")) {
+      map_chr(
+        str_extract_all(country, list_countries_02),
+        ~ paste(unique(.x), collapse = " and ")
+      )
+    } else {
+      country
+    }
+  ) %>%
+  ungroup()
 
 # Check geocoding results
 check_geo_results <- function() {
-  df_mountains_geo %>%
+  df_mountains_geo_rev_country %>%
     slice_sample(n = 1) %>%
-    { ggplot(data = ., aes(x = long, y = lat)) +
+    {
+      ggplot(data = ., aes(x = long, y = lat)) +
         borders() +
         coord_fixed(ratio = 1.3) +
         geom_point(color = "blue", size = 2) +
@@ -82,10 +128,10 @@ check_geo_results <- function() {
 }
 
 # Create two seperate df
-mountains <- df_mountains_geo %>%
+mountains <- df_mountains_geo_rev_country %>%
   select(id, mountain, meters, feet, country)
 
-coordinates <- df_mountains_geo %>%
+coordinates <- df_mountains_geo_rev_country %>%
   select(id, lat, long)
 
 # Create the .rda file
